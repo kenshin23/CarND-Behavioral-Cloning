@@ -1,6 +1,8 @@
 # Project: Behavioral Cloning
 [![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
 
+Behavioral Cloning project for Udacity's Self-Driving Car Nanodegree Program
+
 "Train a deep neural network to drive a car like you!"
 
 Udacity created a simulator based on the Unity engine that uses real game physics to create a close approximation to real driving.
@@ -49,7 +51,3 @@ The classroom notes for this project and [a post by Vivek Yadak](https://chatbot
 ## Training
 
 It's time to train the model. We use a Sequential Keras model, with an Adam optimizer function. This should help with the learning rate and the amount of epochs required to train. Also, we've used dropout layers to account for the fact that the straight driving is 5x larger than steering left or right; this prevents overfitting as well. As mentioned before, we're replicating the NVIDIA model described as follows:
-
-
-
-
