@@ -8,7 +8,7 @@ from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
 import matplotlib.pyplot as plt
-import pandas as pd
+import matplotlib.ticker as ticker
 import numpy as np
 import random
 import json
@@ -18,6 +18,11 @@ import csv
 
 
 # Helper functions:
+
+
+def drop_probability(value, probability=0.95):
+    '''Callback function for Pandas to delete a row based on a probability.'''
+    return value & bool(random.random() <= probability)
 
 
 def print_csv_report(csv_file, output_plots=True):
@@ -31,9 +36,10 @@ def print_csv_report(csv_file, output_plots=True):
     # Maybe we're running this in the console, so skip plotting:
     if output_plots:
         print('Distribution of steering angles:')
-        plt.hist(steering_angles, bins=1000)
+        plt.hist(steering_angles, bins=100)
         plt.title("Distribution of steering angles")
         plt.xlabel("Value")
+        plt.xticks(np.arange(-1.1, 1.1, 0.1))
         plt.ylabel("Frequency")
         plt.show()
 
@@ -58,8 +64,8 @@ def normalize(image):
 
 def crop_resize(img):
     shape = img.shape
-    # Crop image -- remove 25 off the bottom and 70 pixels on top:
-    img = img[70:shape[0] - 25, 0:shape[1]]
+    # Crop image -- remove 62px pixels off the top and 25px off the bottom:
+    img = img[62:shape[0] - 25, 0:shape[1]]
     # Resize to 200x66:
     img = cv2.resize(img, (200, 66), interpolation=cv2.INTER_AREA)
     return img
@@ -68,7 +74,6 @@ def crop_resize(img):
 def change_brightness(img):
     hsv_img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
     random_bright = .25 + np.random.uniform()
-    # print(random_bright)
     hsv_img[:, :, 2] = hsv_img[:, :, 2] * random_bright
     return cv2.cvtColor(hsv_img, cv2.COLOR_HSV2RGB)
 
@@ -81,6 +86,7 @@ def flip_horizontal(img):
 
 def generate_randomized_batch(features, labels, batch_size):
     '''Load each image and corresponding steering angle randomly from dataset'''
+    # NOTE: Not used since for some reason, shuffling the dataset works now.
     while True:
         batch_features = []
         batch_labels = []
@@ -92,32 +98,45 @@ def generate_randomized_batch(features, labels, batch_size):
         yield batch_features, batch_labels
 
 
-def training_generator(batch_size):
+# def training_generator(batch_size, batch_generator):
+def training_generator(gen_features, gen_labels, batch_size):
     while True:
         batch_features = np.zeros((batch_size, 66, 200, 3), dtype=np.float32)
         batch_labels = np.zeros((batch_size,), dtype=np.float32)
-        features, labels = next(get_train_batch)
-        for i in range(len(features)):
-            # Load the image and label:
-            batch_feature = features[i]
-            batch_label = labels[i]
+        # features, labels = next(batch_generator)
+        features, labels = shuffle(gen_features, gen_labels)
+        # for i in range(len(features)):
+        for i in range(batch_size):
+            choice = int(np.random.choice(len(features), 1))
+            batch_label = labels[choice]
+            # Load the image:
+            batch_feature = load_image(features[choice])
             # Crop to needed dimensions:
-            batch_feature = crop_resize(batch_feature)
+            temp_feature = crop_resize(batch_feature)
 
             # Change brightness?
             coin_brightness = random.randint(0, 1)
             if coin_brightness == 1:
-                batch_feature = change_brightness(batch_feature)
+                temp_feature = change_brightness(temp_feature)
 
             # Flip image?
             flip_coin = random.randint(0, 1)
             if flip_coin == 1:
-                batch_feature = flip_horizontal(batch_feature)
+                temp_feature = flip_horizontal(temp_feature)
                 batch_label = -batch_label
 
-            batch_features[i] = batch_feature
-            batch_labels[i] = batch_label
-        # print('Batch size in train_gen: {}'.format(len(batch_features)))
+            # If the generated label (steering angle) is close to 0 or +/- 0.25
+            # (the steering correction) discard it with probability 0.8:
+            discard_prob = 0.8
+            if (np.isclose(batch_label, 0) or
+                np.isclose(batch_label, 0.25) or
+                np.isclose(batch_label, -0.25) or
+                batch_label > 1.0 or
+                batch_label < -1.0) and random.random() > discard_prob:
+                pass  # Discard the data
+            else:
+                batch_features[i] = temp_feature
+                batch_labels[i] = batch_label
         yield batch_features, batch_labels
 
 
@@ -130,7 +149,7 @@ def validation_generator(features, labels, batch_size):
             choice = int(np.random.choice(len(features), 1))
             batch_label = labels[choice]
             # Load the image:
-            batch_feature = features[choice]
+            batch_feature = load_image(features[choice])
             # Crop to needed dimensions:
             batch_feature = crop_resize(batch_feature)
 
@@ -157,23 +176,23 @@ def nvidia_model():
     # Convolutional 1
     model.add(Convolution2D(24, 5, 5, subsample=(2, 2), border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_1'))
-    model.add(Dropout(0.5, name='Convo1_Dropout'))
+    model.add(Dropout(0.50, name='Convo1_Dropout'))
     # Convolutional 2
     model.add(Convolution2D(36, 5, 5, subsample=(2, 2), border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_2'))
-    model.add(Dropout(0.5, name='Convo2_Dropout'))
+    model.add(Dropout(0.50, name='Convo2_Dropout'))
     # Convolutional 3
     model.add(Convolution2D(48, 5, 5, subsample=(2, 2), border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_3'))
-    model.add(Dropout(0.5, name='Convo3_Dropout'))
+    model.add(Dropout(0.50, name='Convo3_Dropout'))
     # Convolutional 4
     model.add(Convolution2D(64, 3, 3, border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_4'))
-    model.add(Dropout(0.5, name='Convo4_Dropout'))
+    model.add(Dropout(0.50, name='Convo4_Dropout'))
     # Convolutional 5
     model.add(Convolution2D(64, 3, 3, border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_5'))
-    model.add(Dropout(0.5, name='Convo5_Dropout'))
+    model.add(Dropout(0.50, name='Convo5_Dropout'))
     # Flatten
     model.add(Flatten(name='Flatten'))
     # Fully Connected (Dense) 1
