@@ -60,10 +60,11 @@ model.summary()
 # Training loop static values:
 resize_w, resize_h = 200, 66
 training_cycles = 10
-validation_size = len(csv_file)
+validation_multiplier = 1  # NotImplemented (yet)
+validation_size = int(validation_multiplier * len(csv_file))
 batch_size = 256
 sample_multiplier = 3
-samples_epoch = sample_multiplier * (math.floor(len(csv_file) / batch_size) * batch_size)
+samples_epoch = int(sample_multiplier * (math.floor(len(csv_file) / batch_size) * batch_size))
 prob_threshold = 1
 best_cycle = 0
 val_best = 1000
