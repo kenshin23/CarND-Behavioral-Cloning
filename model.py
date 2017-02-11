@@ -95,6 +95,6 @@ for cycle_nb in range(training_cycles):
         model.save('model_best.h5')
     prob_threshold = 1 / (cycle_nb + 1)
 
-print('Best model found at iteration # ' + str(i_best))
+print('Best model found at iteration # ' + str(best_cycle))
 print('Best Validation score : ' + str(np.round(val_best, 4)))
 print('Training done.')
