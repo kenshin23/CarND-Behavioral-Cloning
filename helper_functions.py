@@ -17,6 +17,9 @@ import cv2
 import csv
 
 
+prob_threshold = 1
+correction = 0.25
+
 # Helper functions:
 
 
@@ -78,84 +81,107 @@ def change_brightness(img):
     return cv2.cvtColor(hsv_img, cv2.COLOR_HSV2RGB)
 
 
+# From Vivek Yadav's Medium post:
+def trans_image(image, steer, trans_range):
+    rows, cols, channels = image.shape
+    tr_x = trans_range*np.random.uniform()-trans_range/2
+    steer_ang = steer + tr_x/trans_range*2*.2
+    tr_y = 10*np.random.uniform()-10/2
+    Trans_M = np.float32([[1, 0, tr_x], [0, 1, tr_y]])
+    image_tr = cv2.warpAffine(image, Trans_M, (cols, rows))
+
+    return image_tr, steer_ang
+
+
 def flip_horizontal(img):
     return cv2.flip(img, 1)
+
+
+def preprocess_image_training(line_data):
+    choose_camera = np.random.randint(3)
+
+    if choose_camera == 0:
+        image_path = line_data['Left Image'][0].strip()
+        shift_ang = correction
+    if choose_camera == 1:
+        image_path = line_data['Center Image'][0].strip()
+        shift_ang = 0.
+    if choose_camera == 2:
+        image_path = line_data['Right Image'][0].strip()
+        shift_ang = -correction
+
+    steering_angle = line_data['Steering Angle Smooth'][0] + shift_ang
+    image = load_image(image_path)
+    image, steering_angle = trans_image(image, steering_angle, 150)
+    image = change_brightness(image)
+    image = crop_resize(image)
+    image = np.array(image)
+    ind_flip = np.random.randint(2)
+    if ind_flip == 0:
+        image = flip_horizontal(image)
+        steering_angle = -steering_angle
+
+    return image, steering_angle
+
+
+def preprocess_image_predict(line_data):
+    image_path = line_data['Center Image'][0].strip()
+    image = load_image(image_path)
+    image = crop_resize(image)
+    image = np.array(image)
+    return image
 
 # Batch and training/validation generators
 
 
-def generate_randomized_batch(features, labels, batch_size):
-    '''Load each image and corresponding steering angle randomly from dataset'''
-    # NOTE: Not used since for some reason, shuffling the dataset works now.
+def training_generator(pandas_data, batch_size=32):
+    """
+    Generator for use while training the model.
+
+    Load each image and corresponding steering angle randomly from the Pandas dataset,
+    and turn it into a batch that can be handled by the computer.
+    :param pandas_data: DataFrame loaded from the simulator's CSV file.
+    :param batch_size: Amount of the training images to be sent to the model.
+    :return: Features and labels for training the model.
+    """
+    batch_features = np.zeros((batch_size, 66, 200, 3))
+    batch_labels = np.zeros(batch_size)
     while True:
-        batch_features = []
-        batch_labels = []
         for i in range(batch_size):
-            choice = int(np.random.choice(len(features), 1))
-            batch_features.append(features[choice])
-            batch_labels.append(labels[choice])
-        # print('Batch size in batch_gen: {}'.format(len(batch_features)))
-        yield batch_features, batch_labels
-
-
-# def training_generator(batch_size, batch_generator):
-def training_generator(gen_features, gen_labels, batch_size):
-    while True:
-        batch_features = np.zeros((batch_size, 66, 200, 3), dtype=np.float32)
-        batch_labels = np.zeros((batch_size,), dtype=np.float32)
-        # features, labels = next(batch_generator)
-        features, labels = shuffle(gen_features, gen_labels)
-        # for i in range(len(features)):
-        for i in range(batch_size):
-            choice = int(np.random.choice(len(features), 1))
-            batch_label = labels[choice]
-            # Load the image:
-            batch_feature = load_image(features[choice])
-            # Crop to needed dimensions:
-            temp_feature = crop_resize(batch_feature)
-
-            # Change brightness?
-            coin_brightness = random.randint(0, 1)
-            if coin_brightness == 1:
-                temp_feature = change_brightness(temp_feature)
-
-            # Flip image?
-            flip_coin = random.randint(0, 1)
-            if flip_coin == 1:
-                temp_feature = flip_horizontal(temp_feature)
-                batch_label = -batch_label
-
-            # If the generated label (steering angle) is close to 0 or +/- 0.25
-            # (the steering correction) discard it with probability 0.8:
-            discard_prob = 0.8
-            if (np.isclose(batch_label, 0) or
-                np.isclose(batch_label, 0.25) or
-                np.isclose(batch_label, -0.25) or
-                batch_label > 1.0 or
-                batch_label < -1.0) and random.random() > discard_prob:
-                pass  # Discard the data
-            else:
-                batch_features[i] = temp_feature
-                batch_labels[i] = batch_label
-        yield batch_features, batch_labels
-
-
-def validation_generator(features, labels, batch_size):
-    batch_features = np.zeros((batch_size, 66, 200, 3), dtype=np.float32)
-    batch_labels = np.zeros((batch_size,), dtype=np.float32)
-    while True:
-        features, labels = shuffle(features, labels)
-        for i in range(batch_size):
-            choice = int(np.random.choice(len(features), 1))
-            batch_label = labels[choice]
-            # Load the image:
-            batch_feature = load_image(features[choice])
-            # Crop to needed dimensions:
-            batch_feature = crop_resize(batch_feature)
-
+            line_choice = int(np.random.choice(len(pandas_data), 1))
+            line_data = pandas_data.iloc[[line_choice]].reset_index()
+            keep_prob = 0
+            # Discard low steering angles if a probability is above a set threshold:
+            # (This threshold is reduced while the model trains).
+            while keep_prob == 0:
+                batch_feature, batch_label = preprocess_image_training(line_data)
+                if abs(batch_label) < .1:
+                    prob_val = np.random.uniform()
+                    if prob_val > prob_threshold:
+                        keep_prob = 1
+                else:
+                    keep_prob = 1
             batch_features[i] = batch_feature
             batch_labels[i] = batch_label
+
         yield batch_features, batch_labels
+
+
+def validation_generator(pandas_data):
+    """
+    Generator for use while validating the model.
+    :param pandas_data: DataFrame loaded from the simulator's CSV file.
+    :return: Features and labels for training the model.
+    """
+    # Validation generator
+    while True:
+        for i in range(len(pandas_data)):
+            line_data = pandas_data.iloc[[i]].reset_index()
+            feature = preprocess_image_predict(line_data)
+            feature = feature.reshape(1, feature.shape[0], feature.shape[1], feature.shape[2])
+            label = line_data['Steering Angle Smooth'][0]
+            label = np.array([[label]])
+            yield feature, label
 
 # Models:
 
