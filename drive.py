@@ -13,6 +13,8 @@ from flask import Flask
 from io import BytesIO
 
 from keras.models import load_model
+import h5py
+from keras import __version__ as keras_version
 
 from helper_functions import crop_resize
 
@@ -40,7 +42,15 @@ def telemetry(sid, data):
         image_array = crop_resize(image_array)
 
         steering_angle = float(model.predict(image_array[None, :, :, :], batch_size=1))
-        throttle = 0.2
+        min_speed = 10
+        max_speed = 12
+        if float(speed) < min_speed:
+            throttle = 1.0
+        elif float(speed) > max_speed:
+            throttle = -1.0
+        else:
+            throttle = 0.1
+
         print(steering_angle, throttle)
         send_control(steering_angle, throttle)
 
@@ -85,6 +95,15 @@ if __name__ == '__main__':
         help='Path to image folder. This is where the images from the run will be saved.'
     )
     args = parser.parse_args()
+
+    # check that model Keras version is same as local Keras version
+    f = h5py.File(args.model, mode='r')
+    model_version = f.attrs.get('keras_version')
+    keras_version = str(keras_version).encode('utf8')
+
+    if model_version != keras_version:
+        print('You are using Keras version ', keras_version,
+              ', but the model was built using ', model_version)
 
     model = load_model(args.model)
 
