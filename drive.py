@@ -16,6 +16,9 @@ from keras.models import load_model
 import h5py
 from keras import __version__ as keras_version
 
+import tensorflow as tf
+tf.python.control_flow_ops = tf
+
 from helper_functions import crop_resize, change_colorspace
 
 sio = socketio.Server()
@@ -40,7 +43,7 @@ def telemetry(sid, data):
 
         # Modify the image to comply with the same pre-processing as the model:
         image_array = crop_resize(image_array)
-        image_array = change_colorspace(image_array, 'RGB')
+        image_array = change_colorspace(image_array, 'YUV')
 
         steering_angle = float(model.predict(image_array[None, :, :, :], batch_size=1))
         min_speed = 10

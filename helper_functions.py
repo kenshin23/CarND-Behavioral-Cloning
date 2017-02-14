@@ -17,6 +17,8 @@ import math
 import cv2
 import csv
 
+import tensorflow as tf
+tf.python.control_flow_ops = tf
 
 prob_threshold = 1
 correction = 0.25
@@ -116,9 +118,9 @@ def change_brightness(img):
 # From Vivek Yadav's Medium post:
 def trans_image(image, steer, trans_range):
     rows, cols, channels = image.shape
-    tr_x = trans_range*np.random.uniform()-trans_range/2
-    steer_ang = steer + tr_x/trans_range*2*.2
-    tr_y = 10*np.random.uniform()-10/2
+    tr_x = trans_range * np.random.uniform() - trans_range / 2
+    steer_ang = steer + tr_x / trans_range * 2 * .2
+    tr_y = 10 * np.random.uniform() - 10 / 2
     Trans_M = np.float32([[1, 0, tr_x], [0, 1, tr_y]])
     image_tr = cv2.warpAffine(image, Trans_M, (cols, rows))
 
@@ -147,7 +149,7 @@ def preprocess_image_training(line_data):
     image, steering_angle = trans_image(image, steering_angle, 150)
     image = change_brightness(image)
     image = crop_resize(image)
-    image = change_colorspace(image, 'RGB')
+    image = change_colorspace(image, 'YUV')
     image = np.array(image)
     ind_flip = np.random.randint(2)
     if ind_flip == 0:
@@ -188,7 +190,8 @@ def training_generator(pandas_data, batch_size=32):
             # Discard low steering angles if a probability is above a set threshold:
             # (This threshold is reduced while the model trains).
             while keep_prob == 0:
-                batch_feature, batch_label = preprocess_image_training(line_data)
+                batch_feature, batch_label = preprocess_image_training(
+                    line_data)
                 if abs(batch_label) < .1:
                     prob_val = np.random.uniform()
                     if prob_val > prob_threshold:
@@ -212,7 +215,8 @@ def validation_generator(pandas_data):
         for i in range(len(pandas_data)):
             line_data = pandas_data.iloc[[i]].reset_index()
             feature = preprocess_image_predict(line_data)
-            feature = feature.reshape(1, feature.shape[0], feature.shape[1], feature.shape[2])
+            feature = feature.reshape(
+                1, feature.shape[0], feature.shape[1], feature.shape[2])
             label = line_data['Steering Angle Smooth'][0]
             label = np.array([[label]])
             yield feature, label
@@ -221,7 +225,11 @@ def validation_generator(pandas_data):
 
 
 def nvidia_model():
-
+    """
+    Implementation of NVIDIA's 'End to End Learning for Self-Driving Cars' model.
+    Available here: https://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf
+    :return: Keras model.
+    """
     model = Sequential()
 
     # Input - Normalization:
@@ -269,4 +277,32 @@ def nvidia_model():
     # model.add(Dropout(0.50, name='FC_3_Dropout'))
     # Output
     model.add(Dense(1, name='Output'))
+    return model
+
+
+def comma_ai_model():
+    """
+    Implementation of the Comma.ai model for Self-Driving Cars.
+    Available here: https://github.com/commaai/research/blob/master/train_steering_model.py
+    :return: Keras model.
+    """
+    model = Sequential()
+
+    model.add(Lambda(lambda x: x / 255. - 0.5, input_shape=(66, 200, 3),
+                     output_shape=(66, 200, 3), name='Input_Normalization'))
+    model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode='same',
+                            W_regularizer=l2(0.0), name='Convolution_1'))
+    model.add(ELU(), name='ELU_Convolution_1')
+    model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode='same',
+                            W_regularizer=l2(0.0), name='Convolution_2'))
+    model.add(ELU(), name='ELU_Convolution_2')
+    model.add(Convolution2D(64, 5, 5, subsample=(2, 2), border_mode='same',
+                            W_regularizer=l2(0.0), name='Convolution_3'))
+    model.add(Flatten(name='Flatten'))
+    model.add(Dropout(0.2, name='Flatten_Dropout'))
+    model.add(ELU(), name='ELU_Flatten')
+    model.add(Dense(512, W_regularizer=l2(0.0)), name='Fully_Connected_1')
+    model.add(Dropout(0.5, name='Fully_Connected_Dropout'))
+    model.add(ELU(), name='ELU_Fully_Connected')
+    model.add(Dense(1, W_regularizer=l2(0.0), name='Output'))
     return model

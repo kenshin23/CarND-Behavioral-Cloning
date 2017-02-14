@@ -11,6 +11,8 @@ import pandas as pd
 import numpy as np
 import math
 import json
+import tensorflow as tf
+tf.python.control_flow_ops = tf
 
 # Static values and initialization:
 output_steering_plot = False
@@ -66,12 +68,12 @@ valid_generator = helper.validation_generator(csv_file)
 
 # Model & training loop static values:
 resize_w, resize_h = 200, 66
-training_cycles = 5
+training_cycles = 10
 learning_rate = 1e-3
 validation_multiplier = 1  # NotImplemented (yet)
 validation_size = int(validation_multiplier * len(csv_file))
 batch_size = 128
-sample_multiplier = 2
+sample_multiplier = 3
 samples_epoch = int(sample_multiplier * (math.floor(len(csv_file) / batch_size) * batch_size))
 prob_threshold = 1
 best_cycle = 0
