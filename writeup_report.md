@@ -16,13 +16,10 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 
-[image1]: ./examples/placeholder.png "Model Visualization"
-[image2]: ./examples/placeholder.png "Grayscaling"
-[image3]: ./examples/placeholder_small.png "Recovery Image"
-[image4]: ./examples/placeholder_small.png "Recovery Image"
-[image5]: ./examples/placeholder_small.png "Recovery Image"
-[image6]: ./examples/placeholder_small.png "Normal Image"
-[image7]: ./examples/placeholder_small.png "Flipped Image"
+[image1]: ./writeup_imgs/center_driving.png "Center Image"
+[image2]: ./writeup_imgs/left_recovery.png "Left Recovery Image"
+[image3]: ./writeup_imgs/right_recovery.png "Right Recovery Image"
+[image4]: ./writeup_imgs/generated_images.png "Generator Output"
 
 ## Rubric Points
 ### Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/432/view) individually and describe how I addressed each point in my implementation.  
@@ -39,13 +36,13 @@ My project includes the following files:
 * model.h5 containing a trained convolution neural network 
 * writeup_report.md summarizing the results
 
-####2. Submssion includes functional code
+#### 2. Submssion includes functional code
 Using the Udacity provided simulator and drive.py file (modified to include the same preprocessing functions as the model), the car can be driven autonomously around the track by executing 
 ```sh
 python drive.py model.h5
 ```
 
-####3. Submission code is usable and readable
+#### 3. Submission code is usable and readable
 
 The model.py file contains the code for training and saving the convolution neural network. Additionally, helper_functions.py hold the actual model architecture and the pipeline I used for training and validating the model, and it contains comments to explain how the code works.
 
@@ -59,17 +56,17 @@ It should be noted that, rather than classification (which was done in [project 
 
 The model includes Exponential Linear Unit (ELU) activations in each convolutional layer to introduce nonlinearity (code lines 236, 240, 244, 248, 252 in helper_functions.py), and the data is normalized in the model using a Keras lambda layer (code line 227). 
 
-####2. Attempts to reduce overfitting in the model
+#### 2. Attempts to reduce overfitting in the model
 
 The model contains dropout layers in order to reduce overfitting (helper_functions.py lines 238, 242, 246, 250, 254, 257). 
 
 The model was trained and validated on different data sets to ensure that the model was not overfitting. This was achieved by using a generator which augments data on-the-fly, using the provided images obtained from driving around the track in the simulator, in training mode. The model was tested by running it through the simulator and ensuring that the vehicle could stay on the track.
 
-####3. Model parameter tuning
+#### 3. Model parameter tuning
 
 The model used an Adam optimizer, so the learning rate was not tuned manually (model.py line 72).
 
-####4. Appropriate training data
+#### 4. Appropriate training data
 
 Training data was chosen to keep the vehicle driving on the road. The specific process is detailed below, in the "Creation of the Training Set" section.
 
@@ -77,7 +74,7 @@ The resulting images and CSV file were moved to a GPU-enabled Ubuntu Linux local
 
 For details about how I created the training data, see the next section. 
 
-###Model Architecture and Training Strategy
+### Model Architecture and Training Strategy
 
 #### 1. Solution Design Approach
 
@@ -135,18 +132,16 @@ Non-trainable params: 0
 
 To capture good driving behavior, the simulator was run on Windows 10 x64 using a PlayStation 4 controller to try and keep inputs smooth. Approximately 5-6 laps were run around the test (left) course, with 2 additional laps training for recovery, i.e.: one where I recorded driving going back to center from the right part of the track, and a similar one but from the left side. To avoid bias towards straight driving, 5-6 more laps were run around the track, but in the opposite direction. Here is an example image of center lane driving:
 
-![alt text][image2]
+![Center Driving][image1]
 
 Here are examples of left and right-side recovery, to teach the car what to do when it is too far left or right from the center of the road. These images show what a recovery looks like, from the left and right sides of the road, respectively:
 
-![alt text][image3]
-![alt text][image4]
-![alt text][image5]
+![Left Recovery][image2]
+![Right Recovery][image3]
 
-To augment the data set, I originally used the entire training set as a validation set, and instead used cropping, resizing, brightness changes, image translations, and horizontal flips, to create an entirely different training set using a Keras generator, all suggested by Vivek Yadav's Medium post. For example, here is an image that has then been flipped horizontally:
+To augment the data set, I originally used the entire training set as a validation set, and instead used cropping, resizing, brightness changes, image translations, and horizontal flips, to create an entirely different training set using a Keras generator, all suggested by Vivek Yadav's Medium post. For example, here is the output of the generator for a batch size of 16:
 
-![alt text][image6]
-![alt text][image7]
+![Generator output (Data Augmentation)][image4]
 
 After the collection process, I had 13698 data points, which tripled if you include left and right cameras.
 

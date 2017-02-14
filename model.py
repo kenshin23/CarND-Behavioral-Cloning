@@ -52,6 +52,18 @@ csv_file.drop('close_zero', axis=1)
 # unaltered image from it is very low.)
 valid_generator = helper.validation_generator(csv_file)
 
+# Test training generator (for plotting):
+# train_generator_test = helper.training_generator(csv_file, 16)
+# plot_train_test_imgs, plot_train_test_angle = next(train_generator_test)
+
+# plt.figure(figsize=(14, 14))
+# for idx, plt_img in enumerate(plot_train_test_imgs):
+#     plt.subplot(4, 4, idx+1)
+#     img = plt_img
+#     plt.imshow(img)
+#     plt.title('{}'.format(plot_train_test_angle[idx]))
+# plt.savefig('generated_images.png', bbox_inches='tight')
+
 # Model & training loop static values:
 resize_w, resize_h = 200, 66
 training_cycles = 5
