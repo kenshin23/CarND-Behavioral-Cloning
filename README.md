@@ -53,31 +53,25 @@ It's time to train the model. I use a Sequential Keras model, with an Adam optim
 ```____________________________________________________________________________________________________
 Layer (type)                     Output Shape          Param #     Connected to                     
 ====================================================================================================
-Normalization (Lambda)           (None, 66, 200, 3)    0           lambda_input_1[0][0]             
+Input_Normalization (Lambda)     (None, 66, 200, 3)    0           lambda_input_1[0][0]             
 ____________________________________________________________________________________________________
-Convolution_1 (Convolution2D)    (None, 31, 98, 24)    1824        Normalization[0][0]              
+Convolution_1 (Convolution2D)    (None, 31, 98, 24)    1824        Input_Normalization[0][0]        
 ____________________________________________________________________________________________________
-Convo1_Dropout (Dropout)         (None, 31, 98, 24)    0           Convolution_1[0][0]              
+Convolution_2 (Convolution2D)    (None, 14, 47, 36)    21636       Convolution_1[0][0]              
 ____________________________________________________________________________________________________
-Convolution_2 (Convolution2D)    (None, 14, 47, 36)    21636       Convo1_Dropout[0][0]             
+Convolution_3 (Convolution2D)    (None, 5, 22, 48)     43248       Convolution_2[0][0]              
 ____________________________________________________________________________________________________
-Convo2_Dropout (Dropout)         (None, 14, 47, 36)    0           Convolution_2[0][0]              
+Convolution_4 (Convolution2D)    (None, 3, 20, 64)     27712       Convolution_3[0][0]              
 ____________________________________________________________________________________________________
-Convolution_3 (Convolution2D)    (None, 5, 22, 48)     43248       Convo2_Dropout[0][0]             
+Convolution_5 (Convolution2D)    (None, 1, 18, 64)     36928       Convolution_4[0][0]              
 ____________________________________________________________________________________________________
-Convo3_Dropout (Dropout)         (None, 5, 22, 48)     0           Convolution_3[0][0]              
+Flatten (Flatten)                (None, 1152)          0           Convolution_5[0][0]              
 ____________________________________________________________________________________________________
-Convolution_4 (Convolution2D)    (None, 3, 20, 64)     27712       Convo3_Dropout[0][0]             
+Flatten_Dropout (Dropout)        (None, 1152)          0           Flatten[0][0]                    
 ____________________________________________________________________________________________________
-Convo4_Dropout (Dropout)         (None, 3, 20, 64)     0           Convolution_4[0][0]              
+Fully_Connected_0 (Dense)        (None, 1152)          1328256     Flatten_Dropout[0][0]            
 ____________________________________________________________________________________________________
-Convolution_5 (Convolution2D)    (None, 1, 18, 64)     36928       Convo4_Dropout[0][0]             
-____________________________________________________________________________________________________
-Convo5_Dropout (Dropout)         (None, 1, 18, 64)     0           Convolution_5[0][0]              
-____________________________________________________________________________________________________
-Flatten (Flatten)                (None, 1152)          0           Convo5_Dropout[0][0]             
-____________________________________________________________________________________________________
-Fully_Connected_1 (Dense)        (None, 100)           115300      Flatten[0][0]                    
+Fully_Connected_1 (Dense)        (None, 100)           115300      Fully_Connected_0[0][0]          
 ____________________________________________________________________________________________________
 Fully_Connected_2 (Dense)        (None, 50)            5050        Fully_Connected_1[0][0]          
 ____________________________________________________________________________________________________
@@ -85,9 +79,10 @@ Fully_Connected_3 (Dense)        (None, 10)            510         Fully_Connect
 ____________________________________________________________________________________________________
 Output (Dense)                   (None, 1)             11          Fully_Connected_3[0][0]          
 ====================================================================================================
-Total params: 252,219
-Trainable params: 252,219
+Total params: 1,580,475
+Trainable params: 1,580,475
 Non-trainable params: 0
+
 ```
 The NVIDIA model doesn't specify using dropout layers, but I decided to use them to help prevent against overfitting. 
 

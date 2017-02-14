@@ -3,6 +3,7 @@ from keras.models import Sequential
 from keras.layers.core import Activation, Dense, Dropout, Flatten, Lambda
 from keras.layers.convolutional import Convolution2D, Cropping2D
 from keras.layers.pooling import MaxPooling2D
+from keras.callbacks import EarlyStopping
 
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
@@ -31,11 +32,13 @@ def drop_probability(value, probability=0.95):
 def print_csv_report(csv_file, output_plots=True):
     '''Report values loaded from CSV file'''
     steering_angles = csv_file['Steering Angle'].values
+    print('-------------------------------------------')
     print('Number of images: {}'.format(len(csv_file.values)))
     print('Mean speed: {}'.format(np.mean(csv_file['Speed'].values)))
     print('Mean steering angle: {}'.format(np.mean(steering_angles)))
     print('Minimum steering angle: {}'.format(np.amin(steering_angles)))
     print('Maximum steering angle: {}'.format(np.amax(steering_angles)))
+    print('-------------------------------------------')
     # Maybe we're running this in the console, so skip plotting:
     if output_plots:
         print('Distribution of steering angles:')
@@ -60,9 +63,38 @@ def load_image(path):
     return image
 
 
-def normalize(image):
-    image = (image / 255) - 0.5
-    return image
+def normalize(img):
+    img = (img / 255) - 0.5
+    return img
+
+
+def crop_image(img):
+    shape = img.shape
+    # Crop image -- remove 62px pixels off the top and 25px off the bottom:
+    img = img[62:shape[0] - 25, 0:shape[1]]
+    return img
+
+
+def change_colorspace(img, color_space='RGB'):
+    if color_space != 'RGB':
+        if color_space == 'HSV':
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        elif color_space == 'LUV':
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
+        elif color_space == 'HLS':
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+        elif color_space == 'YUV':
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+        elif color_space == 'YCrCb':
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
+    else:
+        img = np.copy(img)
+    return img
+
+
+def resize_image(img):
+    img = cv2.resize(img, (200, 66), interpolation=cv2.INTER_AREA)
+    return img
 
 
 def crop_resize(img):
@@ -115,6 +147,7 @@ def preprocess_image_training(line_data):
     image, steering_angle = trans_image(image, steering_angle, 150)
     image = change_brightness(image)
     image = crop_resize(image)
+    image = change_colorspace(image, 'RGB')
     image = np.array(image)
     ind_flip = np.random.randint(2)
     if ind_flip == 0:
@@ -128,6 +161,7 @@ def preprocess_image_predict(line_data):
     image_path = line_data['Center Image'][0].strip()
     image = load_image(image_path)
     image = crop_resize(image)
+    image = change_colorspace(image, 'YUV')
     image = np.array(image)
     return image
 
@@ -190,9 +224,9 @@ def nvidia_model():
 
     model = Sequential()
 
-    # Input + Normalization:
+    # Input - Normalization:
     model.add(Lambda(lambda x: x / 255. - 0.5, input_shape=(66, 200, 3),
-                     output_shape=(66, 200, 3), name='Normalization'))
+                     output_shape=(66, 200, 3), name='Input_Normalization'))
 
     # NVIDIA paper says:
     # "We use strided convolutions in the first three convolutional layers
@@ -202,31 +236,37 @@ def nvidia_model():
     # Convolutional 1
     model.add(Convolution2D(24, 5, 5, subsample=(2, 2), border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_1'))
-    model.add(Dropout(0.50, name='Convo1_Dropout'))
+    #model.add(Dropout(0.50, name='Convo1_Dropout'))
     # Convolutional 2
     model.add(Convolution2D(36, 5, 5, subsample=(2, 2), border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_2'))
-    model.add(Dropout(0.50, name='Convo2_Dropout'))
+    # model.add(Dropout(0.50, name='Convo2_Dropout'))
     # Convolutional 3
     model.add(Convolution2D(48, 5, 5, subsample=(2, 2), border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_3'))
-    model.add(Dropout(0.50, name='Convo3_Dropout'))
+    # model.add(Dropout(0.50, name='Convo3_Dropout'))
     # Convolutional 4
     model.add(Convolution2D(64, 3, 3, border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_4'))
-    model.add(Dropout(0.50, name='Convo4_Dropout'))
+    # model.add(Dropout(0.50, name='Convo4_Dropout'))
     # Convolutional 5
     model.add(Convolution2D(64, 3, 3, border_mode='valid',
                             activation='elu', dim_ordering='tf', name='Convolution_5'))
-    model.add(Dropout(0.50, name='Convo5_Dropout'))
+    # model.add(Dropout(0.50, name='Convo5_Dropout'))
     # Flatten
     model.add(Flatten(name='Flatten'))
+    model.add(Dropout(0.50, name='Flatten_Dropout'))
+    # Fully Connected (Dense) 0
+    model.add(Dense(1152, name='Fully_Connected_0'))
     # Fully Connected (Dense) 1
     model.add(Dense(100, name='Fully_Connected_1'))
+    # model.add(Dropout(0.50, name='FC_1_Dropout'))
     # Fully Connected (Dense) 2
     model.add(Dense(50, name='Fully_Connected_2'))
+    # model.add(Dropout(0.50, name='FC_2_Dropout'))
     # Fully Connected (Dense) 3
     model.add(Dense(10, name='Fully_Connected_3'))
+    # model.add(Dropout(0.50, name='FC_3_Dropout'))
     # Output
     model.add(Dense(1, name='Output'))
     return model
